@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RedzTok Optimizer</title>
+<style>
+body{margin:0;background:#0a0a0a;color:#fff;font-family:Segoe UI,Tahoma,sans-serif}
+.w{max-width:720px;margin:auto;padding:24px 18px}
+h1{color:#00ff88;text-align:center;margin:0;font-size:34px}
+.s{text-align:center;color:#666;font-size:13px;margin:4px 0 20px}
+h3{margin:20px 0 8px}
+.box{background:#1a1a1a;padding:10px 12px;border-radius:6px}
+label{display:block;margin:8px 0}
+select{background:#1a1a1a;color:#00ff88;border:0;padding:6px 10px;border-radius:4px;font-weight:bold}
+button{background:#00ff88;color:#000;border:0;padding:12px 40px;font-size:16px;font-weight:bold;border-radius:6px;cursor:pointer}
+button:disabled{background:#555}
+.bar{background:#1a1a1a;height:22px;border-radius:4px;overflow:hidden;margin-top:6px}
+#fill{background:#00ff88;height:100%;width:0;transition:width .3s}
+#log{background:#050505;color:#00ff88;font:12px Consolas,monospace;padding:10px;height:180px;overflow:auto;white-space:pre-wrap;direction:ltr;text-align:left;border-radius:6px}
+a.dl{display:none;margin-top:12px;color:#000;background:#00ff88;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold}
+</style></head><body><div class="w">
+<h1>RedzTok</h1><div class="s">Optimizer v7.0 — Web</div>
+
+<h3>1. اختر الفيديو</h3>
+<div class="box"><input type="file" id="video" accept="video/*,.mkv,.mov,.avi,.webm"></div>
+
+<h3>2. الخيارات</h3>
+<label><input type="checkbox" id="pure_frame" checked> رفع الإطارات إلى
+ <select id="fps"><option>60</option><option>120</option></select> fps (Pure Frame / minterpolate)</label>
+<label>الأبعاد: <select id="aspect"><option value="portrait">portrait</option><option value="landscape">landscape</option><option value="square">square</option></select></label>
+<label>الجودة: <select id="quality"><option value="high">عالي</option><option value="vhigh" selected>عالي جداً</option><option value="max">أقصى</option></select></label>
+<label><input type="checkbox" id="sharpen"> زيادة الحدّة (Sharpen)</label>
+<label><input type="checkbox" id="denoise"> تقليل الضوضاء (Denoise)</label>
+<label><input type="checkbox" id="patch" checked> 🛡️ TikTok Compression Bypass (Safe Mode)</label>
+
+<h3>3. المعالجة</h3>
+<div id="st" style="color:#888;font-size:13px">جاهز</div>
+<div class="bar"><div id="fill"></div></div>
+<div id="pct" style="text-align:left;color:#00ff88;font-weight:bold">0%</div>
+<div style="text-align:center;margin:14px 0"><button id="go">▶ ابدأ المعالجة</button><br><a class="dl" id="dl">⬇ تحميل الملف الجاهز</a></div>
+<div id="log"></div>
+</div>
+<script>
+const $=id=>document.getElementById(id), ids=["fps","aspect","quality","pure_frame","sharpen","denoise","patch"];
+try{const s=JSON.parse(localStorage.getItem("redztok")||"{}");ids.forEach(i=>{if(i in s){const e=$(i);e.type==="checkbox"?e.checked=s[i]:e.value=s[i]}})}catch(e){}
+const setP=v=>{$("fill").style.width=v+"%";$("pct").textContent=Math.round(v)+"%"};
+$("go").onclick=()=>{
+  const f=$("video").files[0]; if(!f){alert("اختر فيديو أولاً");return}
+  const s={},fd=new FormData(); fd.append("video",f);
+  ids.forEach(i=>{const e=$(i);s[i]=e.type==="checkbox"?e.checked:e.value;fd.append(i,e.type==="checkbox"?(e.checked?"1":"0"):e.value)});
+  try{localStorage.setItem("redztok",JSON.stringify(s))}catch(e){}
+  $("go").disabled=true;$("dl").style.display="none";$("log").textContent="";setP(0);$("st").textContent="جاري الرفع...";
+  const x=new XMLHttpRequest();x.open("POST","/start");
+  x.upload.onprogress=e=>{if(e.lengthComputable)$("st").textContent="جاري الرفع: "+Math.round(e.loaded/e.total*100)+"%"};
+  x.onload=()=>{if(x.status!==200){$("st").textContent="فشل الرفع";$("go").disabled=false;return}poll(JSON.parse(x.responseText).id)};
+  x.onerror=()=>{$("st").textContent="خطأ بالاتصال";$("go").disabled=false};
+  x.send(fd);
+};
+function poll(id){
+  const t=setInterval(async()=>{
+    const r=await (await fetch("/status/"+id)).json();
+    setP(r.progress);$("st").textContent="المعالجة: "+Math.round(r.progress)+"%";
+    $("log").textContent=r.log.join("\n");$("log").scrollTop=1e9;
+    if(r.state!=="running"){clearInterval(t);$("go").disabled=false;
+      if(r.state==="done"){$("dl").href="/download/"+id;$("dl").style.display="inline-block";$("st").textContent="اكتمل ✓"}
+      else $("st").textContent="فشلت المعالجة"}
+  },1000);
+}
+</script></body></html>
